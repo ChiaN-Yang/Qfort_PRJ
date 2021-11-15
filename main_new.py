@@ -6,10 +6,13 @@ import os
 import numpy as np
 import math
 import csv
-from scipy.signal import savgol_filter
+from datetime import datetime
 import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter
+from lmfit import Model
 
 data_name = 'tt-2.csv'
+file_name = f'{datetime.now()}'[:19].replace(':', "'") + " output.csv"
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -33,11 +36,17 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load data
         self.x_data = []
         self.y_data = []
+
+        self.reader = []
         with open(data_name, 'r') as f:
             reader = csv.reader(f)
             for row in reader:
-                self.x_data.append(row[0])
-                self.y_data.append(row[1])
+                self.reader.append(row)
+
+        for row in self.reader:
+            self.x_data.append(row[0])
+            self.y_data.append(row[1])
+
         del(self.x_data[0])
         del(self.y_data[0])
         self.x_data = list(map(float, self.x_data))
@@ -45,23 +54,31 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Plot origin left
         self.left_origin_graph = self.widget.plot(self.x_data, self.y_data)
-        self.lr = pg.LinearRegionItem([300, 500])
+        self.lr = pg.LinearRegionItem([400, 410])
         self.lr.setZValue(-10)
         self.widget.addItem(self.lr)
-        # Plot smooth left
-        self.y_smooth = savgol_filter(self.y_data, 51, 3)
-        self.left_smooth_graph = self.widget.plot(
-            self.x_data, self.y_smooth, pen=(255, 0, 0, 200))
-
-        # Plot smooth right
-        self.right_smooth_graph = self.widget_2.plot(
-            self.x_data, self.y_smooth, pen=(255, 0, 0, 200))
+        # region data
         self.region_left = self.closest(
             self.x_data, int(self.lr.getRegion()[0]))
         self.region_right = self.closest(
             self.x_data, int(self.lr.getRegion()[1]))
         self.x_region = np.array(
             self.x_data[self.region_left:self.region_right])
+        self.y_region = np.array(
+            self.y_data[self.region_left:self.region_right])
+
+        # Plot smooth left&right
+        gmodel = Model(self.gaussian)
+        self.y_smooth = savgol_filter(self.y_data, self.window_length, self.polyorder)[
+            self.region_left:self.region_right]
+        result = gmodel.fit(self.y_smooth, x=self.x_region,
+                            alpha=self.alpha, b=self.b, c=self.c, d=self.d)
+        self.left_smooth_graph = self.widget.plot(
+            self.x_region, result.best_fit, pen=(255, 0, 0, 200))
+        self.right_smooth_graph = self.widget_2.plot(
+            self.x_region, result.best_fit, pen=(255, 0, 0, 200))
+        print(result.values)
+
         # Plot gaussian right
         self.y_guass = self.gaussian(
             self.x_region, self.alpha, self.b, self.c, self.d)
@@ -100,10 +117,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def reLoadData(self):
         y_data = []
-        with open(data_name, 'r') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                y_data.append(row[self.data_num])
+
+        for row in self.reader:
+            y_data.append(row[self.data_num])
+
         del(y_data[0])
         y_data = list(map(float, y_data))
         self.y_data = y_data
@@ -146,35 +163,63 @@ class MainWindow(QtWidgets.QMainWindow):
     def renewGraph(self):
         # Plot origin left
         self.left_origin_graph.setData(self.x_data, self.y_data)
-        # Plot smooth left
-        self.y_smooth = savgol_filter(
-            self.y_data, self.window_length, self.polyorder)
-        self.left_smooth_graph.setData(
-            self.x_data, self.y_smooth, pen=(255, 0, 0, 200))
-        # Plot smooth right
-        self.right_smooth_graph.setData(
-            self.x_data, self.y_smooth, pen=(255, 0, 0, 200))
+        # Plot smooth left&right
         self.region_left = self.closest(
             self.x_data, int(self.lr.getRegion()[0])+1)
         self.region_right = self.closest(
             self.x_data, int(self.lr.getRegion()[1])+1)
         self.x_region = np.array(
             self.x_data[self.region_left:self.region_right])
-        self.y_guass = self.gaussian(
-            self.x_region, self.alpha, self.b, self.c, self.d)
-        # Plot gaussian right
-        self.gaussian_graph.setData(
-            self.x_region, self.y_guass, pen=(0, 0, 255, 200))
-        # Plot answer right
-        self.y_answer = self.y_smooth[self.region_left:self.region_right] - \
-            self.y_guass + 500
-        self.answer_graph.setData(
-            self.x_region, self.y_answer, pen=(0, 255, 0, 200))
-        self.label_4.setText(f'{max(self.y_answer):.3f}')
-        list_y = self.y_answer.tolist()
-        index_max = list_y.index(max(list_y))
-        self.answer_x = self.x_region[index_max]
-        self.label_10.setText(f'{self.answer_x:.3f}')
+        self.y_region = np.array(
+            self.y_data[self.region_left:self.region_right])
+        gmodel = Model(self.gaussian)
+        self.y_smooth = savgol_filter(self.y_data, self.window_length, self.polyorder)[
+            self.region_left:self.region_right]
+        result = gmodel.fit(self.y_smooth, x=self.x_region,
+                            alpha=self.alpha, b=self.b, c=self.c, d=self.d)
+        if result.values['alpha'] > 500 or result.values['alpha'] < 10:
+            self.left_smooth_graph.setData(
+                self.x_region, result.best_fit, pen=(255, 0, 0, 200))
+            self.right_smooth_graph.setData(
+                self.x_region, np.zeros(len(self.x_region)), pen=(255, 0, 0, 200))
+            print(result.values)
+            # Plot gaussian right
+            self.y_guass = self.gaussian(
+                self.x_region, 0, self.b, result.values['c']/2, result.values['d'])
+            self.gaussian_graph.setData(
+                self.x_region, self.y_guass, pen=(0, 0, 255, 200))
+            # Plot answer right
+            self.y_answer = result.best_fit - self.y_guass + result.values['d']
+            self.answer_graph.setData(
+                self.x_region, self.y_answer, pen=(0, 255, 0, 200))
+            self.label_4.setText(f'{max(self.y_answer):.3f}')
+            list_y = self.y_answer.tolist()
+            index_max = list_y.index(max(list_y))
+            self.answer_x = 0
+            self.label_10.setText(f'{self.answer_x:.3f}')
+
+        else:
+            self.left_smooth_graph.setData(
+                self.x_region, result.best_fit, pen=(255, 0, 0, 200))
+            self.right_smooth_graph.setData(
+                self.x_region, result.best_fit, pen=(255, 0, 0, 200))
+
+            print(result.values)
+            # Plot gaussian right
+            self.y_guass = self.gaussian(
+                self.x_region, result.values['alpha']/4*3, self.b, result.values['c']/4*3, result.values['d'])
+            self.gaussian_graph.setData(
+                self.x_region, self.y_guass, pen=(0, 0, 255, 200))
+
+            # Plot answer right
+            self.y_answer = result.best_fit - self.y_guass + result.values['d']
+            self.answer_graph.setData(
+                self.x_region, self.y_answer, pen=(0, 255, 0, 200))
+            self.label_4.setText(f'{max(self.y_answer):.3f}')
+            list_y = self.y_answer.tolist()
+            index_max = list_y.index(max(list_y))
+            self.answer_x = self.x_region[index_max]
+            self.label_10.setText(f'{self.answer_x:.3f}')
 
     def displayResult(self):
         try:
@@ -193,7 +238,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showResult()
 
     def showResult(self):
-        with open('output.csv', 'w', newline='') as csvfile:
+        with open(file_name, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerows(self.result)
 
