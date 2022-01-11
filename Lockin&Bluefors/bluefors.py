@@ -149,25 +149,22 @@ class BlueFors(Instrument):
         folder_name = date.today().strftime("%y-%m-%d")
         file_path = os.path.join(self.folder_path, folder_name, 'CH'+str(channel)+' T '+folder_name+'.log')
         
-        try:
+ 
+        try:  # catch OSError in case of a one line file 
             with open(file_path, 'rb') as f:
-                
-                try:  # catch OSError in case of a one line file 
-                    f.seek(-2, os.SEEK_END)
-                    while f.read(1) != b'\n':
-                        f.seek(-2, os.SEEK_CUR)
-                    return f.readline().decode()[18:30]
-                except (PermissionError, OSError) as err:
-                    self.log.warn(f'\n{datetime.datetime.now()}\nCannot access log file: {err}. Returning np.nan instead of the temperature value.')
-                    return np.nan
-                except IndexError as err:
-                    self.log.warn('Cannot parse log file: {}. Returning np.nan instead of the temperature value.'.format(err))
-                    return np.nan                    
-                except OSError:
-                    f.seek(0)
-        except PermissionError as err:
-            self.log.warn(f'\n{datetime.datetime.now()}\nCannot open log file: {err}. Returning np.nan instead of the temperature value.')
+                f.seek(-2, os.SEEK_END)
+                while f.read(1) != b'\n':
+                    f.seek(-2, os.SEEK_CUR)
+                return f.readline().decode()[18:30]
+        except (PermissionError, OSError) as err:
+            self.log.warn(f'\n{datetime.datetime.now()}\nCannot access log file: {err}. Returning np.nan instead of the temperature value.')
             return np.nan
+        except IndexError as err:
+            self.log.warn('Cannot parse log file: {}. Returning np.nan instead of the temperature value.'.format(err))
+            return np.nan                    
+        except OSError:
+            f.seek(0)
+
 
 
     def get_pressure(self, channel: int) -> float:

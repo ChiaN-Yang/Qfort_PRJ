@@ -1,28 +1,15 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu May 13 21:43:17 2021
-
-@author: SOC
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Created on Thu May 13 16:49:12 2021
-
-@author: SOC
-"""
-
-
-# Record frequency (ms)
-from PyQt5 import QtWidgets, QtGui, QtCore
+from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtWidgets import QMessageBox
 import pyqtgraph as pg
 from BF_Temp_1_LK import Ui_MainWindow
 import sys
+import numpy as np
 from datetime import datetime
 from pymeasure.instruments.srs.sr830 import SR830
 from bluefors_origin import BlueFors
 import os
+
+# Record frequency (ms)
 acq_period = 100
 
 
@@ -121,9 +108,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def onNewData(self):
         global d_sec, x, y
-        x.append(float(self.probe))
-        y.append(float(self.R))
-        self.setData(x, y)
+        if self.probe != np.nan:
+            x.append(float(self.probe))
+            y.append(float(self.R))
+            self.setData(x, y)
 
     def update_label(self):
         global current_time, c_time, d_time, activate, d_sec

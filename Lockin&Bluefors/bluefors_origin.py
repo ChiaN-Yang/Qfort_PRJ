@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from datetime import date
 from qcodes.instrument.base import Instrument
+import datetime
 
 
 class BlueFors(Instrument):
@@ -164,16 +165,16 @@ class BlueFors(Instrument):
 
             # There is a space before the day
             df.index = pd.to_datetime(
-                df['date']+'-'+df['time'], format=' %d-%m-%y-%H:%M:%S')
+                df['date']+'-'+df['time'], format='%d-%m-%y-%H:%M:%S')
 
             return df.iloc[-1]['y']
         except (PermissionError, OSError) as err:
             self.log.warn(
-                'Cannot access log file: {}. Returning np.nan instead of the temperature value.'.format(err))
+                f'\n{datetime.datetime.now()}\nCannot access log file: {err}. Returning np.nan instead of the temperature value.')
             return np.nan
         except IndexError as err:
             self.log.warn(
-                'Cannot parse log file: {}. Returning np.nan instead of the temperature value.'.format(err))
+                f'\n{datetime.datetime.now()}\nCannot parse log file: {err}. Returning np.nan instead of the temperature value.')
             return np.nan
 
     def get_pressure(self, channel: int) -> float:
